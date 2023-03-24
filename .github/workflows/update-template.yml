@@ -1,0 +1,75 @@
+name: deploy-student
+
+on:
+  push:
+    branches:
+      - main
+jobs:
+  testsolution:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        maven: ['3.8.5']
+        java: [ '8' ]
+    steps:
+      - name: Step - Setup Maven Action
+        uses: s4u/setup-maven-action@v1.2.1
+        with:
+          java-version: ${{ matrix.java }}
+          maven-version: ${{ matrix.maven }}
+      - name: Step - Build with Maven
+        run: mvn verify
+      - name: Step - Set up Python 3.8
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3.8
+      - name: Step - Install python dependencies
+        run: |
+            python -m pip install --upgrade pip
+            if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+            pip install amanda
+      - name: Step - Setup ssh keys
+        # Make sure the @v0.7.0 matches the current version of the action
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.MY_SSH_KEY }}
+      - name: Step - Clone template
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git clone -b ${GITHUB_REF#refs/heads/} git@github.com:OneAnonymizedUser/template-repository.git template
+          mv template /tmp/template
+          pwd
+          ls
+      - name: Step - Strip
+        run: |
+            pushd .
+            cd /tmp/template
+            if [ -d "src" ]; then git rm -r src; fi
+            if [ -d "data" ]; then git rm -r data; fi
+            popd
+            pwd
+            amanda --orig src/ --dest /tmp/template/src/
+            cp pom.xml /tmp/template/.
+      - name: Step - test-compile template
+        run: |
+          cd /tmp/template
+          mvn test-compile
+          mvn clean
+      - name: Step - Push template
+        run: |
+          git_hash=$(git rev-parse --short "$GITHUB_SHA")  # commit id of the teacher repo
+          cd /tmp/template       
+          git add -A
+          echo "git status"
+          git status --porcelain --untracked-files=no
+          echo "now commit and push if necessary"
+          if [[ `git status --porcelain --untracked-files=no` ]]; then
+            echo "attempt to commit"
+            git commit -m "generated from solution with commit $git_hash"
+            echo "attempt to push"
+            git push origin ${GITHUB_REF#refs/heads/}
+          else
+            echo  "No changes"
+          fi        
+          echo "done"
