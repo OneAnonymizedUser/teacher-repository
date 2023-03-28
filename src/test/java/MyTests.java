@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Grade
 public class MyTests {
+
     @Test
     @Grade(value = 5, cpuTimeout = 1)
     @Forbid("java.lang.Thread")
@@ -16,6 +17,7 @@ public class MyTests {
         // this works
         assertEquals(1, Adder.increment(0));
     }
+
     @Test
     @Grade(value = 3)
     @GradeFeedback(message = "You forgot to consider this particular case [...]", on = FAIL)
